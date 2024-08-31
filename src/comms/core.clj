@@ -65,7 +65,7 @@
 
 
 (defn- -!call!
-  "helper function for `call!call!`"
+  "helper function for `call!`"
   [module signal]
   (let [carrier (promise)]
     (async/>!! (.mailbox module)
