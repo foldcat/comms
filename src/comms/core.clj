@@ -2,11 +2,11 @@
   (:require
     [clojure.core.async :as async]
     [comms.impl.execution :refer [route-exe]]
+    [comms.impl.logging :as log]
     [comms.impl.records :refer [map->Actor
                                 map->Signal
                                 map->Call-Response]]
-    [comms.impl.vthread :refer [vthread]]
-    [taoensso.timbre :as log]))
+    [comms.impl.vthread :refer [vthread]]))
 
 
 (defn- get-from
@@ -37,8 +37,8 @@
   (loop []
     (let [signal (async/<!! (.mailbox module))
           next-state (constantly (route-exe signal))]
-      (log/info "-----next state -----")
-      (log/info next-state)
+      (log/debug "-----next state -----")
+      (log/debug next-state)
       (vswap! (.state module) next-state))
     (recur)))
 
@@ -89,47 +89,8 @@
   [actors])
 
 
-(defn success
+(defn reply
   [reply next-state]
   (map->Call-Response
-    {:mode :success
-     :reply reply
+    {:reply reply
      :next-state next-state}))
-
-
-(defn fail
-  [fail]
-  (map->Call-Response
-    {:mode :fail
-     :reply nil
-     :next-state nil}))
-
-
-(comment
-  (letfn [(hcast
-            [sig state]
-            (case sig
-              :inc (do
-                     (log/info "inc")
-                     (inc state))
-              :dec (do
-                     (log/info "dec")
-                     (dec state))))
-          (hcall 
-            [sig state]
-            (case sig 
-              :inc (let [new-state (inc state)]
-                     (log/info "inc call")
-                     (success new-state new-state))))]
-
-    (let [module (defmodule
-                   [[:init (fn [] 0)]
-                    [:handle-cast hcast]
-                    [:handle-call hcall]])]
-      (start! module)
-      (cast! module :inc)
-      (log/info "-----call-----")
-      (log/info (call! module :inc))
-      (log/info "-----end call-----")
-      (Thread/sleep 1000)
-      @(.state module))))

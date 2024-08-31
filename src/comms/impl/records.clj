@@ -30,8 +30,7 @@
 
 
 (defrecord Call-Response
-  [mode ; :error / :success 
-   reply ; data to reply
+  [reply ; data to reply
    next-state]) ; next state
 
 (defmethod print-method Call-Response [v ^java.io.Writer w]

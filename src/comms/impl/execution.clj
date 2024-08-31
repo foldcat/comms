@@ -1,6 +1,6 @@
 (ns comms.impl.execution
   (:require
-    [taoensso.timbre :as log]))
+    [comms.impl.logging :as log]))
 
 
 (defn router
@@ -13,8 +13,8 @@
 
 (defmethod route-exe :cast
   [signal]
-  (log/info "-----route cast exe-----")
-  ;; (log/info signal)
+  (log/debug "-----route cast exe-----")
+  ;; (log/debug signal)
   (let [sig (.signal signal)
         module (.module signal)
         state (.state module)
@@ -25,23 +25,21 @@
 
 (defmethod route-exe :call
   [signal]
-  (log/info "-----route call exe-----")
-  (log/info signal)
+  (log/debug "-----route call exe-----")
+  (log/debug signal)
   (let [module (.module signal)
         sig (.signal signal)
         state (.state module)
         carrier (.carrier signal)
         cast-fn (first (.handle-call module))
         next-state (cast-fn sig @state)]
-    (log/info "-----next state-----")
-    (log/info next-state)
-    (if (= :fail (.mode next-state))
-      (throw (RuntimeException. "something is wrong")) ; fail
-      (do (deliver carrier (.reply next-state))
-          (.next-state next-state)))))
+    (log/debug "-----next state-----")
+    (log/debug next-state)
+    (deliver carrier (.reply next-state))
+    (.next-state next-state)))
 
 
 (defmethod route-exe :default
   [signal]
-  (log/info signal)
-  (log/info (.category signal)))
+  (log/debug signal)
+  (log/debug (.category signal)))

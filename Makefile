@@ -5,3 +5,7 @@ repl:
 .PHONY: deps
 deps:
 	clojure -e "(println \"Dependencies downloaded\")"
+
+.PHONY: test 
+test:
+	clj -X:test
