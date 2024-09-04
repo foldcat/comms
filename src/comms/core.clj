@@ -1,8 +1,8 @@
 (ns comms.core
+  "main api to allow operations on actors"
   (:require
     [clojure.core.async :as async]
     [comms.impl.records :refer [map->Actor
-                                map->Signal
                                 map->Call-Response
                                 map->Supervisor]
      :as records]))
@@ -16,7 +16,34 @@
 
 
 (defn defmodule
-  "make an module"
+  "make an module, percisely
+  ```clojure
+  (defmodule
+    [[:init (fn [] 0)]
+     [:name \"test-actor\"]
+     [:handle-cast
+      (fn [_signal state]
+        (inc state))]
+     [:handle-call
+      (fn [_sig state]
+        (let [new-state (inc state)]
+          (reply new-state new-state)))]]))
+  ```
+  which the
+  - :init field takes a function that takes no arguments,
+    its return will be the starting state of the module
+  - :name field takes a string as the name of the actor 
+  - :handle-cast field takes a function with 2 arguments,
+    the first one shall be the the signal recieved and 
+    the second one will be the current state, the return 
+    of this function will be the new state after a cast 
+    call, but is called asynchronously
+  - :handle-call field takes the same type of function 
+    as :handle-cast but is called synchronously, and the 
+    function must return a reply
+
+  call the (start!) function to start this module
+  "
   [coll]
   (map->Actor
     {:proc nil
@@ -39,7 +66,7 @@
 
 
 (defn cast!
-  "send signal to module in an async fashion"
+  "send signal to module asynchronously"
   [module signal]
   (records/cast! module signal))
 
@@ -53,7 +80,7 @@
 
 
 (defn supervise
-  "supervises a module"
+  "supervises a module, must be (start!)ed for it to work"
   [actor options]
   (let [supervisor-chan (async/chan)]
     (vreset! (.supervisor-chan actor) supervisor-chan)
@@ -64,6 +91,9 @@
 
 
 (defn reply
+  "returned by a :handle-call, first argument is the 
+  data to reply and next-state will be the next 
+  state for the actor"
   [reply next-state]
   (map->Call-Response
     {:reply reply
