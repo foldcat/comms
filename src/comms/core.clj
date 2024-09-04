@@ -1,19 +1,18 @@
 (ns comms.core
   (:require
     [clojure.core.async :as async]
-    [comms.impl.execution :refer [route-exe]]
-    [comms.impl.logging :as log]
     [comms.impl.records :refer [map->Actor
                                 map->Signal
-                                map->Call-Response]]
-    [comms.impl.vthread :refer [vthread]]))
+                                map->Call-Response
+                                map->Supervisor]
+     :as records]))
 
 
 (defn- get-from
-  [pred coll]
-  (->> (filter #(= (first %) pred) coll)
-       (first)
-       (drop 1)))
+  ([pred coll]
+   (->> (filter #(= (first %) pred) coll)
+        (first)
+        (drop 1))))
 
 
 (defn defmodule
@@ -26,67 +25,42 @@
      :handle-call (get-from :handle-call coll)
      :handle-cast (get-from :handle-cast coll)
      :mailbox (async/chan 10)
-     :supervisor nil
-     :state (volatile! nil)}))
-
-
-(defn- -execution-loop
-  [module]
-  (let [starting-state ((first (.init module)))]
-    (vswap! (.state module) (constantly starting-state)))
-  (loop []
-    (let [signal (async/<!! (.mailbox module))
-          next-state (constantly (route-exe signal))]
-      (log/debug "-----next state -----")
-      (log/debug next-state)
-      (vswap! (.state module) next-state))
-    (recur)))
+     :supervisor-chan (volatile! nil)
+     :state (volatile! nil)
+     :failed? (volatile! false)
+     :nm (first (get-from :name coll))
+     :identifier nil}))
 
 
 (defn start!
   "starts a module"
   [module]
-  (let
-    [proc
-     (vthread (-execution-loop module))
-     out (assoc module :proc proc)]
-    out))
+  (records/start! module))
 
 
 (defn cast!
   "send signal to module in an async fashion"
   [module signal]
-  (async/>!! (.mailbox module)
-             (map->Signal
-               {:category :cast
-                :signal signal
-                :module module
-                :carrier nil}))) ; don't need a carrier here
-
-
-(defn- -!call!
-  "helper function for `call!`"
-  [module signal]
-  (let [carrier (promise)]
-    (async/>!! (.mailbox module)
-               (map->Signal
-                 {:category :call
-                  :signal signal
-                  :module module
-                  :carrier carrier}))
-    carrier))
+  (records/cast! module signal))
 
 
 (defn call!
   "send signal to module, get reply from the module"
   ([module signal]
-   (deref (-!call! module signal)))
+   (records/call! module signal))
   ([module signal timeout-ms]
-   (deref (-!call! module signal) timeout-ms :nil))) ; TODO: change
+   (records/call! module signal timeout-ms)))
 
 
-(defn supervise!
-  [actors])
+(defn supervise
+  "supervises a module"
+  [actor options]
+  (let [supervisor-chan (async/chan)]
+    (vreset! (.supervisor-chan actor) supervisor-chan)
+    (map->Supervisor ; make supervisor
+     {:error-channel supervisor-chan
+      :actor (volatile! actor)
+      :options options})))
 
 
 (defn reply

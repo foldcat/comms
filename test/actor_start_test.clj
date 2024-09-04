@@ -10,6 +10,7 @@
 (def actor
   (core/defmodule
     [[:init (fn [] 0)]
+     [:name "test-actor"]
      [:handle-cast
       (fn [_signal state]
         (inc state))]
