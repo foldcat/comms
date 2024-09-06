@@ -9,3 +9,7 @@ deps:
 .PHONY: test 
 test:
 	clj -X:test
+
+.PHONY: outdated 
+outdated: 
+	clj -M:outdated
